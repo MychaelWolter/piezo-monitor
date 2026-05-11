@@ -1,0 +1,901 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Piezo Energy Monitor</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;700;800&display=swap" rel="stylesheet"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg:        #0a0b0d;
+  --bg2:       #111318;
+  --bg3:       #181c24;
+  --border:    #1e2530;
+  --border2:   #2a3340;
+  --accent:    #00e5a0;
+  --accent2:   #00b37e;
+  --amber:     #f5a623;
+  --red:       #ff4d6a;
+  --blue:      #3d9cf5;
+  --purple:    #a78bfa;
+  --text:      #e2e8f0;
+  --muted:     #64748b;
+  --muted2:    #94a3b8;
+  --mono:      'Space Mono', monospace;
+  --sans:      'Syne', sans-serif;
+  --r:         8px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--sans);
+  min-height: 100vh;
+  overflow-x: hidden;
+}
+
+/* ── Grid scanlines background ── */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    linear-gradient(rgba(0,229,160,.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,229,160,.015) 1px, transparent 1px);
+  background-size: 40px 40px;
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Header ── */
+header {
+  position: relative; z-index: 10;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 18px 32px;
+  border-bottom: 1px solid var(--border);
+  background: rgba(10,11,13,.9);
+  backdrop-filter: blur(12px);
+}
+
+.logo {
+  display: flex; align-items: center; gap: 14px;
+}
+
+.logo-icon {
+  width: 36px; height: 36px;
+  border: 1.5px solid var(--accent);
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  position: relative;
+}
+
+.logo-icon::after {
+  content: '';
+  width: 10px; height: 10px;
+  background: var(--accent);
+  border-radius: 50%;
+  box-shadow: 0 0 12px var(--accent);
+  animation: pulse-dot 2s ease-in-out infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: .5; transform: scale(.7); }
+}
+
+.logo h1 { font-size: 18px; font-weight: 800; letter-spacing: -.3px; }
+.logo h1 span { color: var(--accent); }
+
+.logo p { font-family: var(--mono); font-size: 10px; color: var(--muted); margin-top: 1px; }
+
+.header-right { display: flex; align-items: center; gap: 20px; }
+
+#connection-badge {
+  display: flex; align-items: center; gap: 7px;
+  font-family: var(--mono); font-size: 11px; color: var(--muted);
+  padding: 6px 12px;
+  border: 1px solid var(--border2);
+  border-radius: 20px;
+  transition: all .3s;
+}
+
+#connection-badge .dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--muted);
+  transition: background .3s;
+}
+
+#connection-badge.connected { color: var(--accent); border-color: var(--accent2); }
+#connection-badge.connected .dot {
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent);
+  animation: pulse-dot 1.5s ease-in-out infinite;
+}
+
+#port-label { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+
+/* ── Main layout ── */
+main {
+  position: relative; z-index: 1;
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  grid-template-rows: auto auto 1fr;
+  gap: 16px;
+  padding: 20px 32px 32px;
+  max-width: 1600px;
+  margin: 0 auto;
+}
+
+/* ── KPI strip (full width) ── */
+.kpi-strip {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+}
+
+.kpi {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 16px 20px;
+  position: relative;
+  overflow: hidden;
+  cursor: default;
+  transition: border-color .2s;
+}
+
+.kpi:hover { border-color: var(--border2); }
+
+.kpi::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--kpi-color, var(--accent));
+}
+
+.kpi-label {
+  font-family: var(--mono); font-size: 10px; color: var(--muted);
+  letter-spacing: .08em; text-transform: uppercase;
+  margin-bottom: 8px;
+}
+
+.kpi-value {
+  font-family: var(--mono); font-size: 26px; font-weight: 700;
+  color: var(--kpi-color, var(--text));
+  line-height: 1;
+  transition: color .3s;
+}
+
+.kpi-unit {
+  font-family: var(--mono); font-size: 11px; color: var(--muted);
+  margin-top: 4px;
+}
+
+/* ── Left panel ── */
+.left-panel {
+  display: flex; flex-direction: column; gap: 16px;
+}
+
+/* ── Card base ── */
+.card {
+  background: var(--bg2);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  overflow: hidden;
+}
+
+.card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.card-title {
+  font-family: var(--mono); font-size: 11px; color: var(--muted);
+  letter-spacing: .1em; text-transform: uppercase;
+}
+
+.card-body { padding: 18px; }
+
+/* ── Gauge (capacitor charge) ── */
+.gauge-wrap {
+  display: flex; flex-direction: column; align-items: center;
+  padding: 20px;
+}
+
+.gauge-container {
+  position: relative; width: 180px; height: 180px;
+}
+
+.gauge-svg { width: 100%; height: 100%; transform: rotate(-225deg); }
+
+.gauge-track {
+  fill: none; stroke: var(--bg3);
+  stroke-width: 14; stroke-linecap: round;
+  stroke-dasharray: 235 300;
+}
+
+#gauge-fill {
+  fill: none; stroke: var(--accent);
+  stroke-width: 14; stroke-linecap: round;
+  stroke-dasharray: 0 300;
+  transition: stroke-dasharray .6s cubic-bezier(.4,0,.2,1), stroke .4s;
+  filter: drop-shadow(0 0 6px var(--accent));
+}
+
+.gauge-center {
+  position: absolute; inset: 0;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  pointer-events: none;
+}
+
+#gauge-pct {
+  font-family: var(--mono); font-size: 32px; font-weight: 700;
+  color: var(--accent); line-height: 1;
+  transition: color .4s;
+}
+
+#gauge-vcap {
+  font-family: var(--mono); font-size: 13px; color: var(--muted2);
+  margin-top: 4px;
+}
+
+.gauge-label { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 12px; }
+
+/* ── LED control ── */
+.led-control {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 18px;
+}
+
+.led-status {
+  display: flex; align-items: center; gap: 10px;
+}
+
+.led-bulb {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--bg3);
+  border: 2px solid var(--border2);
+  transition: all .3s;
+  position: relative;
+}
+
+.led-bulb.on {
+  background: #fff9c4;
+  border-color: var(--amber);
+  box-shadow: 0 0 16px #f5a62370, 0 0 40px #f5a62330;
+}
+
+.led-label { font-family: var(--mono); font-size: 12px; }
+#led-state { color: var(--muted); transition: color .3s; }
+#led-state.on { color: var(--amber); }
+
+.btn-group { display: flex; gap: 6px; }
+
+.btn {
+  font-family: var(--mono); font-size: 11px;
+  padding: 7px 14px; border-radius: 6px;
+  border: 1px solid var(--border2);
+  background: transparent; color: var(--muted2);
+  cursor: pointer; transition: all .2s;
+  letter-spacing: .04em;
+}
+
+.btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,229,160,.06); }
+.btn.danger:hover { border-color: var(--red); color: var(--red); background: rgba(255,77,106,.06); }
+.btn.active { border-color: var(--accent); color: var(--accent); background: rgba(0,229,160,.1); }
+
+/* ── Stats list ── */
+.stat-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 13px;
+}
+
+.stat-row:last-child { border-bottom: none; }
+.stat-key { color: var(--muted); font-family: var(--mono); font-size: 11px; }
+.stat-val { font-family: var(--mono); font-size: 12px; font-weight: 700; }
+
+/* ── Charts (right panel) ── */
+.right-panel {
+  display: flex; flex-direction: column; gap: 16px;
+}
+
+.chart-wrap {
+  position: relative;
+  padding: 16px 18px;
+  height: 220px;
+}
+
+.chart-wrap canvas { display: block; }
+
+/* ── Log terminal ── */
+.terminal {
+  background: #080a0d;
+  border-radius: 0 0 var(--r) var(--r);
+  font-family: var(--mono); font-size: 11px;
+  color: #64ffb4;
+  padding: 14px 18px;
+  height: 160px;
+  overflow-y: auto;
+  line-height: 1.7;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border2) transparent;
+}
+
+.terminal .ts   { color: var(--muted); }
+.terminal .err  { color: var(--red); }
+.terminal .warn { color: var(--amber); }
+.terminal .ok   { color: var(--accent); }
+
+.terminal-header {
+  display: flex; align-items: center; gap: 8px;
+}
+
+.terminal-dots span {
+  display: inline-block; width: 10px; height: 10px;
+  border-radius: 50%; margin-right: 4px;
+}
+
+.d1 { background: var(--red); }
+.d2 { background: var(--amber); }
+.d3 { background: var(--accent); }
+
+/* ── Pulse counter ── */
+.pulse-bar {
+  height: 4px; border-radius: 2px;
+  background: var(--bg3); overflow: hidden;
+  margin-top: 6px;
+}
+
+.pulse-fill {
+  height: 100%; border-radius: 2px;
+  background: var(--blue);
+  width: 0%; transition: width .4s;
+}
+
+/* ── Board info chip ── */
+.board-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--mono); font-size: 10px;
+  padding: 4px 10px;
+  border: 1px solid var(--border2);
+  border-radius: 20px;
+  color: var(--muted2);
+}
+
+/* ── Responsive ── */
+@media (max-width: 1100px) {
+  main { grid-template-columns: 1fr; }
+  .kpi-strip { grid-template-columns: repeat(3, 1fr); }
+}
+
+@media (max-width: 700px) {
+  main { padding: 12px 14px 24px; gap: 12px; }
+  .kpi-strip { grid-template-columns: repeat(2, 1fr); }
+  header { padding: 14px 18px; }
+}
+
+/* ── Animations ── */
+@keyframes fadeIn { from { opacity:0; transform: translateY(6px); } to { opacity:1; transform:none; } }
+.kpi, .card { animation: fadeIn .4s ease both; }
+.kpi:nth-child(2) { animation-delay: .05s; }
+.kpi:nth-child(3) { animation-delay: .10s; }
+.kpi:nth-child(4) { animation-delay: .15s; }
+.kpi:nth-child(5) { animation-delay: .20s; }
+.kpi:nth-child(6) { animation-delay: .25s; }
+
+.value-flash { animation: flash .3s ease; }
+@keyframes flash { 0%,100%{opacity:1} 50%{opacity:.3} }
+</style>
+</head>
+<body>
+
+<!-- ── Header ─────────────────────────────────────────────── -->
+<header>
+  <div class="logo">
+    <div class="logo-icon"></div>
+    <div>
+      <h1>PIEZO<span>.</span>MONITOR</h1>
+      <p>ENERGY HARVESTING SYSTEM v1.0</p>
+    </div>
+  </div>
+  <div class="header-right">
+    <span id="port-label">—</span>
+    <div id="connection-badge">
+      <span class="dot"></span>
+      <span id="conn-text">aguardando...</span>
+    </div>
+  </div>
+</header>
+
+<!-- ── Main ───────────────────────────────────────────────── -->
+<main>
+
+  <!-- KPI Strip -->
+  <div class="kpi-strip">
+    <div class="kpi" style="--kpi-color: var(--accent)">
+      <div class="kpi-label">Tensão Capacitor</div>
+      <div class="kpi-value" id="kpi-vcap">—</div>
+      <div class="kpi-unit">Volts</div>
+    </div>
+    <div class="kpi" style="--kpi-color: var(--blue)">
+      <div class="kpi-label">Potência Gerada</div>
+      <div class="kpi-value" id="kpi-power">—</div>
+      <div class="kpi-unit">milliwatts</div>
+    </div>
+    <div class="kpi" style="--kpi-color: var(--purple)">
+      <div class="kpi-label">Energia Acumulada</div>
+      <div class="kpi-value" id="kpi-energy">—</div>
+      <div class="kpi-unit">millijoules</div>
+    </div>
+    <div class="kpi" style="--kpi-color: var(--amber)">
+      <div class="kpi-label">Pulsos / Intervalo</div>
+      <div class="kpi-value" id="kpi-pulses">—</div>
+      <div class="kpi-unit">por 500ms</div>
+    </div>
+    <div class="kpi" style="--kpi-color: var(--accent)">
+      <div class="kpi-label">Pulsos Total</div>
+      <div class="kpi-value" id="kpi-total-pulses">—</div>
+      <div class="kpi-unit">acumulado</div>
+    </div>
+    <div class="kpi" style="--kpi-color: var(--muted)">
+      <div class="kpi-label">Uptime Arduino</div>
+      <div class="kpi-value" id="kpi-uptime">—</div>
+      <div class="kpi-unit">segundos</div>
+    </div>
+  </div>
+
+  <!-- Left Panel -->
+  <div class="left-panel">
+
+    <!-- Gauge capacitor -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Carga do Supercapacitor</span>
+        <span class="board-chip" id="board-chip">—</span>
+      </div>
+      <div class="gauge-wrap">
+        <div class="gauge-container">
+          <svg class="gauge-svg" viewBox="0 0 100 100">
+            <circle class="gauge-track" cx="50" cy="50" r="38"/>
+            <circle id="gauge-fill"     cx="50" cy="50" r="38"/>
+          </svg>
+          <div class="gauge-center">
+            <div id="gauge-pct">—%</div>
+            <div id="gauge-vcap">— V</div>
+          </div>
+        </div>
+        <div class="gauge-label">1F / 5.5V MAX</div>
+      </div>
+    </div>
+
+    <!-- LED Control -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Controle da Fita LED</span>
+        <div class="led-status">
+          <div class="led-bulb" id="led-bulb"></div>
+          <span class="led-label" id="led-state">DESLIGADO</span>
+        </div>
+      </div>
+      <div class="led-control">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--muted)">
+          Limiar ON: <b style="color:var(--accent)">3.8V</b> &nbsp;|&nbsp;
+          OFF: <b style="color:var(--red)">2.8V</b>
+        </div>
+        <div class="btn-group">
+          <button class="btn" onclick="sendCommand('LED_ON')">LED ON</button>
+          <button class="btn danger" onclick="sendCommand('LED_OFF')">LED OFF</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Stats -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Telemetria</span>
+        <button class="btn" onclick="sendCommand('RESET_ENERGY')" style="padding:4px 10px;font-size:10px">RESET ENERGIA</button>
+      </div>
+      <div class="card-body">
+        <div class="stat-row">
+          <span class="stat-key">ADC Raw</span>
+          <span class="stat-val" id="st-raw">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-key">V ADC (pin)</span>
+          <span class="stat-val" id="st-vadc">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-key">Resolução ADC</span>
+          <span class="stat-val" id="st-res">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-key">Timestamp Arduino</span>
+          <span class="stat-val" id="st-ts">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-key">Porta Serial</span>
+          <span class="stat-val" id="st-port">—</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-key">WS Clientes</span>
+          <span class="stat-val" id="st-ws">1</span>
+        </div>
+
+        <!-- Pulse rate bar -->
+        <div style="margin-top:14px">
+          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+            <span class="stat-key">Taxa de pulsos</span>
+            <span class="stat-val" id="st-pulse-rate">— Hz</span>
+          </div>
+          <div class="pulse-bar"><div class="pulse-fill" id="pulse-fill"></div></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Right Panel -->
+  <div class="right-panel">
+
+    <!-- Voltage chart -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Tensão do Capacitor — histórico</span>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--muted)">últimos 60 pontos × 500ms</span>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="chart-voltage"></canvas>
+      </div>
+    </div>
+
+    <!-- Power chart -->
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">Potência Gerada (mW) & Pulsos</span>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--muted)">estimado por ΔE do capacitor</span>
+      </div>
+      <div class="chart-wrap">
+        <canvas id="chart-power"></canvas>
+      </div>
+    </div>
+
+    <!-- Terminal log -->
+    <div class="card">
+      <div class="card-header">
+        <div class="terminal-header">
+          <div class="terminal-dots">
+            <span class="d1"></span><span class="d2"></span><span class="d3"></span>
+          </div>
+          <span class="card-title">Serial Log — JSON Raw</span>
+        </div>
+        <button class="btn" onclick="clearLog()" style="padding:4px 10px;font-size:10px">LIMPAR</button>
+      </div>
+      <div class="terminal" id="terminal"></div>
+    </div>
+
+  </div>
+
+</main>
+
+<script>
+// ── Config ────────────────────────────────────────────────────
+const WS_URL    = `ws://${location.host}/ws`;
+const MAX_HIST  = 60;
+
+// ── State ─────────────────────────────────────────────────────
+let boardInfo   = null;
+let history     = [];
+let ws          = null;
+let reconnTimer = null;
+
+// ── Chart.js global defaults ──────────────────────────────────
+Chart.defaults.color           = '#64748b';
+Chart.defaults.borderColor     = '#1e2530';
+Chart.defaults.font.family     = "'Space Mono', monospace";
+Chart.defaults.font.size       = 10;
+
+function makeChart(id, datasets, yMax, yLabel) {
+  const ctx = document.getElementById(id).getContext('2d');
+  return new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels:   [],
+      datasets: datasets,
+    },
+    options: {
+      animation:   { duration: 0 },
+      responsive:  true,
+      maintainAspectRatio: false,
+      interaction: { intersect: false, mode: 'index' },
+      plugins: {
+        legend: {
+          labels: { boxWidth: 10, padding: 14,
+                    font: { family: "'Space Mono', monospace", size: 10 } }
+        },
+        tooltip: {
+          backgroundColor: '#111318',
+          borderColor:     '#2a3340',
+          borderWidth:     1,
+          titleFont:       { family: "'Space Mono', monospace" },
+          bodyFont:        { family: "'Space Mono', monospace" },
+        },
+      },
+      scales: {
+        x: {
+          ticks:  { maxTicksLimit: 8 },
+          grid:   { color: '#1e2530' },
+        },
+        y: {
+          max:    yMax,
+          min:    0,
+          ticks:  { callback: v => v.toFixed(1) + (yLabel || '') },
+          grid:   { color: '#1e2530' },
+        },
+        ...(datasets.length > 1 ? {
+          y2: {
+            position: 'right',
+            ticks: { callback: v => v, maxTicksLimit: 5 },
+            grid:  { drawOnChartArea: false },
+          }
+        } : {}),
+      },
+    },
+  });
+}
+
+// ── Charts init ───────────────────────────────────────────────
+const chartVoltage = makeChart('chart-voltage', [{
+  label:           'Vcap (V)',
+  data:            [],
+  borderColor:     '#00e5a0',
+  backgroundColor: 'rgba(0,229,160,.08)',
+  borderWidth:     2,
+  fill:            true,
+  tension:         0.3,
+  pointRadius:     0,
+}], 6, 'V');
+
+const chartPower = makeChart('chart-power', [
+  {
+    label:           'Potência (mW)',
+    data:            [],
+    borderColor:     '#3d9cf5',
+    backgroundColor: 'rgba(61,156,245,.08)',
+    borderWidth:     2,
+    fill:            true,
+    tension:         0.4,
+    pointRadius:     0,
+    yAxisID:         'y',
+  },
+  {
+    label:           'Pulsos',
+    data:            [],
+    borderColor:     '#a78bfa',
+    backgroundColor: 'transparent',
+    borderWidth:     1.5,
+    borderDash:      [4, 4],
+    fill:            false,
+    tension:         0,
+    pointRadius:     0,
+    yAxisID:         'y2',
+  },
+], 10, 'mW');
+
+// ── Chart updater ─────────────────────────────────────────────
+function updateCharts() {
+  const labels = history.map((_, i) => {
+    const ago = (history.length - 1 - i) * 0.5;
+    return ago === 0 ? 'agora' : `-${ago.toFixed(1)}s`;
+  });
+
+  chartVoltage.data.labels               = labels;
+  chartVoltage.data.datasets[0].data     = history.map(d => d.vcap);
+  chartVoltage.update('none');
+
+  chartPower.data.labels                 = labels;
+  chartPower.data.datasets[0].data       = history.map(d => Math.max(0, d.power_mw));
+  chartPower.data.datasets[1].data       = history.map(d => d.pulses);
+  chartPower.update('none');
+}
+
+// ── Gauge updater ─────────────────────────────────────────────
+const GAUGE_CIRC = 2 * Math.PI * 38;  // circunferência do círculo r=38
+const GAUGE_ARC  = GAUGE_CIRC * 0.75; // arco 270°
+
+function updateGauge(pct, vcap) {
+  const fill   = (pct / 100) * GAUGE_ARC;
+  const remain = GAUGE_CIRC - fill;
+  document.getElementById('gauge-fill').style.strokeDasharray =
+    `${fill.toFixed(1)} ${remain.toFixed(1)}`;
+
+  const color = pct < 30 ? '#ff4d6a' : pct < 60 ? '#f5a623' : '#00e5a0';
+  document.getElementById('gauge-fill').style.stroke = color;
+  document.getElementById('gauge-fill').style.filter = `drop-shadow(0 0 6px ${color})`;
+  document.getElementById('gauge-pct').style.color   = color;
+  document.getElementById('gauge-pct').textContent   = pct.toFixed(0) + '%';
+  document.getElementById('gauge-vcap').textContent  = vcap.toFixed(3) + ' V';
+}
+
+// ── KPI updater ───────────────────────────────────────────────
+function flash(id) {
+  const el = document.getElementById(id);
+  el.classList.remove('value-flash');
+  void el.offsetWidth;
+  el.classList.add('value-flash');
+}
+
+function updateUI(d) {
+  // KPIs
+  const set = (id, val) => { document.getElementById(id).textContent = val; flash(id); };
+
+  set('kpi-vcap',         d.vcap.toFixed(3));
+  set('kpi-power',        Math.max(0, d.power_mw).toFixed(2));
+  set('kpi-energy',       d.energy_mj.toFixed(1));
+  set('kpi-pulses',       d.pulses);
+  set('kpi-total-pulses', d.total_pulses ?? '—');
+  set('kpi-uptime',       d.uptime?.toFixed(0) ?? '—');
+
+  // Gauge
+  updateGauge(d.charge_pct, d.vcap);
+
+  // LED
+  const led = d.led;
+  document.getElementById('led-bulb').classList.toggle('on', led);
+  const ls = document.getElementById('led-state');
+  ls.textContent = led ? 'LIGADO' : 'DESLIGADO';
+  ls.classList.toggle('on', led);
+
+  // Stats
+  document.getElementById('st-raw').textContent   = d.raw_adc;
+  document.getElementById('st-vadc').textContent  = d.vadc?.toFixed(3) + ' V';
+  document.getElementById('st-ts').textContent    = d.ts + ' ms';
+
+  // Pulse rate bar (max ~20 pulsos = 100%)
+  const pulsePct = Math.min(100, (d.pulses / 20) * 100);
+  document.getElementById('pulse-fill').style.width = pulsePct + '%';
+  document.getElementById('st-pulse-rate').textContent = (d.pulses * 2).toFixed(0) + ' Hz';
+}
+
+function setBoardInfo(info) {
+  if (!info) return;
+  boardInfo = info;
+  const bits  = info.adc_bits;
+  const vref  = info.vref;
+  const resol = ((vref / Math.pow(2, bits)) * 1000).toFixed(2);
+
+  document.getElementById('board-chip').textContent = info.board || '—';
+  document.getElementById('st-res').textContent     = `${bits}-bit / ${resol} mV`;
+  document.getElementById('st-port').textContent    = info.portName || document.getElementById('port-label').textContent;
+
+  log(`BOOT: ${info.board} | ADC ${bits}-bit | Vref=${vref}V | res=${resol}mV`, 'ok');
+}
+
+// ── Connection badge ──────────────────────────────────────────
+function setConnected(on, portName) {
+  const badge = document.getElementById('connection-badge');
+  badge.classList.toggle('connected', on);
+  document.getElementById('conn-text').textContent = on ? 'conectado' : 'desconectado';
+  if (portName) {
+    document.getElementById('port-label').textContent = portName;
+    document.getElementById('st-port').textContent    = portName;
+  }
+}
+
+// ── Terminal log ──────────────────────────────────────────────
+const terminal = document.getElementById('terminal');
+let logCount = 0;
+
+function log(msg, cls = '') {
+  const now  = new Date().toLocaleTimeString('pt-BR', { hour12: false });
+  const line = document.createElement('div');
+  line.innerHTML = `<span class="ts">${now}</span> <span class="${cls}">${msg}</span>`;
+  terminal.appendChild(line);
+  if (++logCount > 200) terminal.firstChild?.remove();
+  terminal.scrollTop = terminal.scrollHeight;
+}
+
+function clearLog() { terminal.innerHTML = ''; logCount = 0; }
+
+// ── Commands ──────────────────────────────────────────────────
+async function sendCommand(cmd) {
+  try {
+    const r = await fetch('/api/command', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ command: cmd }),
+    });
+    const j = await r.json();
+    log(`CMD → ${cmd} ${j.ok || j.sent ? '✓' : '✗'}`, j.ok || j.sent ? 'ok' : 'err');
+  } catch (e) {
+    log(`CMD erro: ${e.message}`, 'err');
+  }
+}
+
+// ── WebSocket ─────────────────────────────────────────────────
+function connect() {
+  ws = new WebSocket(WS_URL);
+
+  ws.onopen = () => {
+    setConnected(false, null);
+    log('WebSocket conectado ao servidor Node.js', 'ok');
+  };
+
+  ws.onmessage = ({ data }) => {
+    let msg;
+    try { msg = JSON.parse(data); } catch { return; }
+
+    if (msg.type === 'init') {
+      if (msg.boardInfo) setBoardInfo({ ...msg.boardInfo, portName: msg.portName });
+      if (msg.history?.length) {
+        history = msg.history.slice(-MAX_HIST);
+        updateCharts();
+      }
+      if (msg.lastData) updateUI(msg.lastData);
+      setConnected(msg.connected, msg.portName);
+      log(`Init: ${msg.mock ? 'MODO DEMO' : msg.portName || '—'} | ${msg.history?.length ?? 0} pontos`, 'ok');
+      return;
+    }
+
+    if (msg.type === 'boot') {
+      setBoardInfo(msg.boardInfo);
+      setConnected(true);
+      return;
+    }
+
+    if (msg.type === 'connected') {
+      setConnected(true, msg.portName);
+      log(`Serial: ${msg.portName}`, 'ok');
+      return;
+    }
+
+    if (msg.type === 'disconnected') {
+      setConnected(false);
+      log('Serial desconectado', 'err');
+      return;
+    }
+
+    if (msg.type === 'cmd') {
+      log(`EVT: ${JSON.stringify(msg.data)}`, 'warn');
+      return;
+    }
+
+    if (msg.type === 'data') {
+      const d = msg.data;
+      history.push(d);
+      if (history.length > MAX_HIST) history.shift();
+
+      updateUI(d);
+      updateCharts();
+
+      // Raw log (throttled — só mostra a cada 2 mensagens)
+      if ((logCount % 2) === 0) {
+        const short = `vcap=${d.vcap}V pwr=${d.power_mw}mW pulsos=${d.pulses} led=${d.led}`;
+        log(short);
+      }
+    }
+  };
+
+  ws.onclose = () => {
+    setConnected(false);
+    log('WebSocket fechado — reconectando em 3s...', 'warn');
+    clearTimeout(reconnTimer);
+    reconnTimer = setTimeout(connect, 3000);
+  };
+
+  ws.onerror = () => {
+    log('WebSocket erro', 'err');
+  };
+}
+
+connect();
+</script>
+</body>
+</html>

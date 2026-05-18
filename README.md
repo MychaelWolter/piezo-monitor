@@ -1,6 +1,6 @@
-# Piezo Energy Harvesting Monitor
+# Piso Gerador
 
-Sistema completo de monitoramento para circuito de energy harvesting piezoelétrico com 100 piezos (10 grupos em paralelo, cada grupo com 10 piezos em série), retificação, armazenamento em dois capacitores de 1F/5.5V e alimentação de LED 5V via step-up. O Arduino Due lê as tensões dos piezos e do capacitor e envia os dados via serial para um servidor Node.js, que os transmite em tempo real para um dashboard web.
+Sistema completo de monitoramento para circuito de Sistema de Captação Piezoelétrica com 100 piezos (10 grupos em paralelo, cada grupo com 10 piezos em série), retificação, armazenamento em dois capacitores de 1F/5.5V e alimentação de LED 5V via step-up. O Arduino Due lê as tensões dos piezos e do capacitor e envia os dados via serial para um servidor Node.js, que os transmite em tempo real para um dashboard web.
 
 ---
 

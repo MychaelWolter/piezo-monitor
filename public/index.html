@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-<title>Piezo Energy Monitor</title>
+<title>Piso Gerador</title>
+<link rel="icon" type="image/jpeg" href="piso-gerador.jpeg">
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Syne:wght@400;700;800&display=swap" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
@@ -247,48 +248,10 @@ main {
 
 .gauge-label { font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 12px; }
 
-/* ── LED control ── */
-.led-control {
-  display: flex; align-items: center; justify-content: space-between;
-  padding: 14px 18px;
+/* ── LED control – oculto porque não existe mais no firmware ── */
+.led-control, .led-status, .btn-group, .pulse-bar, #st-pulse-rate {
+  display: none;
 }
-
-.led-status {
-  display: flex; align-items: center; gap: 10px;
-}
-
-.led-bulb {
-  width: 28px; height: 28px; border-radius: 50%;
-  background: var(--bg3);
-  border: 2px solid var(--border2);
-  transition: all .3s;
-  position: relative;
-}
-
-.led-bulb.on {
-  background: #fff9c4;
-  border-color: var(--amber);
-  box-shadow: 0 0 16px #f5a62370, 0 0 40px #f5a62330;
-}
-
-.led-label { font-family: var(--mono); font-size: 12px; }
-#led-state { color: var(--muted); transition: color .3s; }
-#led-state.on { color: var(--amber); }
-
-.btn-group { display: flex; gap: 6px; }
-
-.btn {
-  font-family: var(--mono); font-size: 11px;
-  padding: 7px 14px; border-radius: 6px;
-  border: 1px solid var(--border2);
-  background: transparent; color: var(--muted2);
-  cursor: pointer; transition: all .2s;
-  letter-spacing: .04em;
-}
-
-.btn:hover { border-color: var(--accent); color: var(--accent); background: rgba(0,229,160,.06); }
-.btn.danger:hover { border-color: var(--red); color: var(--red); background: rgba(255,77,106,.06); }
-.btn.active { border-color: var(--accent); color: var(--accent); background: rgba(0,229,160,.1); }
 
 /* ── Stats list ── */
 .stat-row {
@@ -347,19 +310,6 @@ main {
 .d2 { background: var(--amber); }
 .d3 { background: var(--accent); }
 
-/* ── Pulse counter ── */
-.pulse-bar {
-  height: 4px; border-radius: 2px;
-  background: var(--bg3); overflow: hidden;
-  margin-top: 6px;
-}
-
-.pulse-fill {
-  height: 100%; border-radius: 2px;
-  background: var(--blue);
-  width: 0%; transition: width .4s;
-}
-
 /* ── Board info chip ── */
 .board-chip {
   display: inline-flex; align-items: center; gap: 6px;
@@ -402,8 +352,8 @@ main {
   <div class="logo">
     <div class="logo-icon"></div>
     <div>
-      <h1>PIEZO<span>.</span>MONITOR</h1>
-      <p>ENERGY HARVESTING SYSTEM v1.0</p>
+      <h1>PISO<span>.</span>GERADOR</h1>
+      <p>Sistema de Captação Piezoelétrica</p>
     </div>
   </div>
   <div class="header-right">
@@ -436,14 +386,14 @@ main {
       <div class="kpi-unit">millijoules</div>
     </div>
     <div class="kpi" style="--kpi-color: var(--amber)">
-      <div class="kpi-label">Pulsos / Intervalo</div>
-      <div class="kpi-value" id="kpi-pulses">—</div>
-      <div class="kpi-unit">por 500ms</div>
+      <div class="kpi-label">Tensão Piezo</div>
+      <div class="kpi-value" id="kpi-vpiezo">—</div>
+      <div class="kpi-unit">Volts</div>
     </div>
-    <div class="kpi" style="--kpi-color: var(--accent)">
-      <div class="kpi-label">Pulsos Total</div>
-      <div class="kpi-value" id="kpi-total-pulses">—</div>
-      <div class="kpi-unit">acumulado</div>
+    <div class="kpi" style="--kpi-color: var(--accent2)">
+      <div class="kpi-label">Carga do Capacitor</div>
+      <div class="kpi-value" id="kpi-charge">—</div>
+      <div class="kpi-unit">percentual</div>
     </div>
     <div class="kpi" style="--kpi-color: var(--muted)">
       <div class="kpi-label">Uptime Arduino</div>
@@ -472,30 +422,11 @@ main {
             <div id="gauge-vcap">— V</div>
           </div>
         </div>
-        <div class="gauge-label">1F / 5.5V MAX</div>
+        <div class="gauge-label">2F / 5.5V MAX</div>
       </div>
     </div>
 
-    <!-- LED Control -->
-    <div class="card">
-      <div class="card-header">
-        <span class="card-title">Controle da Fita LED</span>
-        <div class="led-status">
-          <div class="led-bulb" id="led-bulb"></div>
-          <span class="led-label" id="led-state">DESLIGADO</span>
-        </div>
-      </div>
-      <div class="led-control">
-        <div style="font-family:var(--mono);font-size:11px;color:var(--muted)">
-          Limiar ON: <b style="color:var(--accent)">3.8V</b> &nbsp;|&nbsp;
-          OFF: <b style="color:var(--red)">2.8V</b>
-        </div>
-        <div class="btn-group">
-          <button class="btn" onclick="sendCommand('LED_ON')">LED ON</button>
-          <button class="btn danger" onclick="sendCommand('LED_OFF')">LED OFF</button>
-        </div>
-      </div>
-    </div>
+    <!-- Card de controle de LED foi removido (hardware não possui mais) -->
 
     <!-- Stats -->
     <div class="card">
@@ -505,7 +436,7 @@ main {
       </div>
       <div class="card-body">
         <div class="stat-row">
-          <span class="stat-key">ADC Raw</span>
+          <span class="stat-key">ADC Raw (Vcap / Vpiezo)</span>
           <span class="stat-val" id="st-raw">—</span>
         </div>
         <div class="stat-row">
@@ -528,15 +459,6 @@ main {
           <span class="stat-key">WS Clientes</span>
           <span class="stat-val" id="st-ws">1</span>
         </div>
-
-        <!-- Pulse rate bar -->
-        <div style="margin-top:14px">
-          <div style="display:flex;justify-content:space-between;margin-bottom:4px">
-            <span class="stat-key">Taxa de pulsos</span>
-            <span class="stat-val" id="st-pulse-rate">— Hz</span>
-          </div>
-          <div class="pulse-bar"><div class="pulse-fill" id="pulse-fill"></div></div>
-        </div>
       </div>
     </div>
 
@@ -545,10 +467,10 @@ main {
   <!-- Right Panel -->
   <div class="right-panel">
 
-    <!-- Voltage chart -->
+    <!-- Voltage chart (Vcap + Vpiezo) -->
     <div class="card">
       <div class="card-header">
-        <span class="card-title">Tensão do Capacitor — histórico</span>
+        <span class="card-title">Tensões — Capacitor e Piezo</span>
         <span style="font-family:var(--mono);font-size:10px;color:var(--muted)">últimos 60 pontos × 500ms</span>
       </div>
       <div class="chart-wrap">
@@ -556,10 +478,10 @@ main {
       </div>
     </div>
 
-    <!-- Power chart -->
+    <!-- Power chart (apenas potência) -->
     <div class="card">
       <div class="card-header">
-        <span class="card-title">Potência Gerada (mW) & Pulsos</span>
+        <span class="card-title">Potência Gerada (mW)</span>
         <span style="font-family:var(--mono);font-size:10px;color:var(--muted)">estimado por ΔE do capacitor</span>
       </div>
       <div class="chart-wrap">
@@ -639,30 +561,38 @@ function makeChart(id, datasets, yMax, yLabel) {
           ticks:  { callback: v => v.toFixed(1) + (yLabel || '') },
           grid:   { color: '#1e2530' },
         },
-        ...(datasets.length > 1 ? {
-          y2: {
-            position: 'right',
-            ticks: { callback: v => v, maxTicksLimit: 5 },
-            grid:  { drawOnChartArea: false },
-          }
-        } : {}),
       },
     },
   });
 }
 
 // ── Charts init ───────────────────────────────────────────────
-const chartVoltage = makeChart('chart-voltage', [{
-  label:           'Vcap (V)',
-  data:            [],
-  borderColor:     '#00e5a0',
-  backgroundColor: 'rgba(0,229,160,.08)',
-  borderWidth:     2,
-  fill:            true,
-  tension:         0.3,
-  pointRadius:     0,
-}], 6, 'V');
+// Gráfico de tensões: Vcap e Vpiezo
+const chartVoltage = makeChart('chart-voltage', [
+  {
+    label:           'Vcap (V)',
+    data:            [],
+    borderColor:     '#00e5a0',
+    backgroundColor: 'rgba(0,229,160,.08)',
+    borderWidth:     2,
+    fill:            true,
+    tension:         0.3,
+    pointRadius:     0,
+  },
+  {
+    label:           'Vpiezo (V)',
+    data:            [],
+    borderColor:     '#f5a623',
+    backgroundColor: 'rgba(245,166,35,.05)',
+    borderWidth:     1.5,
+    borderDash:      [3, 3],
+    fill:            false,
+    tension:         0.3,
+    pointRadius:     0,
+  }
+], 40, 'V');
 
+// Gráfico de potência
 const chartPower = makeChart('chart-power', [
   {
     label:           'Potência (mW)',
@@ -673,21 +603,8 @@ const chartPower = makeChart('chart-power', [
     fill:            true,
     tension:         0.4,
     pointRadius:     0,
-    yAxisID:         'y',
-  },
-  {
-    label:           'Pulsos',
-    data:            [],
-    borderColor:     '#a78bfa',
-    backgroundColor: 'transparent',
-    borderWidth:     1.5,
-    borderDash:      [4, 4],
-    fill:            false,
-    tension:         0,
-    pointRadius:     0,
-    yAxisID:         'y2',
-  },
-], 10, 'mW');
+  }
+], 15, 'mW');
 
 // ── Chart updater ─────────────────────────────────────────────
 function updateCharts() {
@@ -698,24 +615,22 @@ function updateCharts() {
 
   chartVoltage.data.labels               = labels;
   chartVoltage.data.datasets[0].data     = history.map(d => d.vcap);
+  chartVoltage.data.datasets[1].data     = history.map(d => d.vpiezo || 0);
   chartVoltage.update('none');
 
   chartPower.data.labels                 = labels;
   chartPower.data.datasets[0].data       = history.map(d => Math.max(0, d.power_mw));
-  chartPower.data.datasets[1].data       = history.map(d => d.pulses);
   chartPower.update('none');
 }
 
 // ── Gauge updater ─────────────────────────────────────────────
-const GAUGE_CIRC = 2 * Math.PI * 38;  // circunferência do círculo r=38
-const GAUGE_ARC  = GAUGE_CIRC * 0.75; // arco 270°
+const GAUGE_CIRC = 2 * Math.PI * 38;
+const GAUGE_ARC  = GAUGE_CIRC * 0.75;
 
 function updateGauge(pct, vcap) {
   const fill   = (pct / 100) * GAUGE_ARC;
   const remain = GAUGE_CIRC - fill;
-  document.getElementById('gauge-fill').style.strokeDasharray =
-    `${fill.toFixed(1)} ${remain.toFixed(1)}`;
-
+  document.getElementById('gauge-fill').style.strokeDasharray = `${fill.toFixed(1)} ${remain.toFixed(1)}`;
   const color = pct < 30 ? '#ff4d6a' : pct < 60 ? '#f5a623' : '#00e5a0';
   document.getElementById('gauge-fill').style.stroke = color;
   document.getElementById('gauge-fill').style.filter = `drop-shadow(0 0 6px ${color})`;
@@ -733,35 +648,26 @@ function flash(id) {
 }
 
 function updateUI(d) {
-  // KPIs
   const set = (id, val) => { document.getElementById(id).textContent = val; flash(id); };
 
-  set('kpi-vcap',         d.vcap.toFixed(3));
-  set('kpi-power',        Math.max(0, d.power_mw).toFixed(2));
-  set('kpi-energy',       d.energy_mj.toFixed(1));
-  set('kpi-pulses',       d.pulses);
-  set('kpi-total-pulses', d.total_pulses ?? '—');
-  set('kpi-uptime',       d.uptime?.toFixed(0) ?? '—');
+  set('kpi-vcap',     d.vcap.toFixed(3));
+  set('kpi-power',    Math.max(0, d.power_mw).toFixed(2));
+  set('kpi-energy',   d.energy_mj.toFixed(1));
+  set('kpi-vpiezo',   (d.vpiezo !== undefined ? d.vpiezo.toFixed(1) : '—'));
+  set('kpi-charge',   d.charge_pct?.toFixed(1) ?? '—');
+  set('kpi-uptime',   d.uptime?.toFixed(0) ?? '—');
 
-  // Gauge
   updateGauge(d.charge_pct, d.vcap);
 
-  // LED
-  const led = d.led;
-  document.getElementById('led-bulb').classList.toggle('on', led);
-  const ls = document.getElementById('led-state');
-  ls.textContent = led ? 'LIGADO' : 'DESLIGADO';
-  ls.classList.toggle('on', led);
-
   // Stats
-  document.getElementById('st-raw').textContent   = d.raw_adc;
-  document.getElementById('st-vadc').textContent  = d.vadc?.toFixed(3) + ' V';
-  document.getElementById('st-ts').textContent    = d.ts + ' ms';
+  const rawCap   = d.raw_adc_vcap ?? '—';
+  const rawPiezo = d.raw_adc_vpiezo ?? '—';
+  document.getElementById('st-raw').textContent = `${rawCap} / ${rawPiezo}`;
 
-  // Pulse rate bar (max ~20 pulsos = 100%)
-  const pulsePct = Math.min(100, (d.pulses / 20) * 100);
-  document.getElementById('pulse-fill').style.width = pulsePct + '%';
-  document.getElementById('st-pulse-rate').textContent = (d.pulses * 2).toFixed(0) + ' Hz';
+  const vadcCap   = (d.vcap / 2).toFixed(3);
+  const vadcPiezo = (d.vpiezo / 11).toFixed(1);
+  document.getElementById('st-vadc').textContent = `Vcap:${vadcCap}V / Piezo:${vadcPiezo}V`;
+  document.getElementById('st-ts').textContent = d.ts + ' ms';
 }
 
 function setBoardInfo(info) {
@@ -775,7 +681,7 @@ function setBoardInfo(info) {
   document.getElementById('st-res').textContent     = `${bits}-bit / ${resol} mV`;
   document.getElementById('st-port').textContent    = info.portName || document.getElementById('port-label').textContent;
 
-  log(`BOOT: ${info.board} | ADC ${bits}-bit | Vref=${vref}V | res=${resol}mV`, 'ok');
+  log(`BOOT: ${info.board} | ADC ${bits}-bit | Vref=${vref}V | res=${resol}mV | C=${info.capacitance_f ?? 2}F`, 'ok');
 }
 
 // ── Connection badge ──────────────────────────────────────────
@@ -875,9 +781,8 @@ function connect() {
       updateUI(d);
       updateCharts();
 
-      // Raw log (throttled — só mostra a cada 2 mensagens)
       if ((logCount % 2) === 0) {
-        const short = `vcap=${d.vcap}V pwr=${d.power_mw}mW pulsos=${d.pulses} led=${d.led}`;
+        const short = `vcap=${d.vcap}V vpiezo=${d.vpiezo}V pwr=${d.power_mw}mW`;
         log(short);
       }
     }
